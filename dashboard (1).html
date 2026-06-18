@@ -1,0 +1,399 @@
+<!-- Live presenter dashboard — group overview for Wheel of Life + Resilience -->
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ภาพรวมห้องเรียน — เรียลไทม์</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+<style>
+  :root{
+    --navy-900:#0B1730; --navy-800:#0F2143; --navy-700:#15294F; --navy-600:#1D3463;
+    --line:#2A427A; --line-soft:#21376a; --gold:#E7B53C; --gold-soft:#F4D27A;
+    --blue:#5C8FD6; --text:#EBF1FC; --muted:#9DB1D6; --muted-2:#7186ad;
+    --green:#5CC08A; --amber:#E7B53C; --red:#E2756A; --shadow:0 18px 50px rgba(0,0,0,.45);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    font-family:'Sarabun','Leelawadee UI','Tahoma',system-ui,sans-serif;
+    background:radial-gradient(1100px 700px at 50% -10%, #16306a 0%, rgba(22,48,106,0) 60%), var(--navy-900);
+    color:var(--text); min-height:100vh; line-height:1.5; padding:22px 18px 48px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px;margin:0 auto}
+
+  header{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  .title h1{font-size:25px;font-weight:800;margin:0;letter-spacing:.005em}
+  .title h1 .g{color:var(--gold)}
+  .title p{margin:2px 0 0;color:var(--muted);font-size:13.5px}
+  .chips{margin-left:auto;display:flex;gap:10px;flex-wrap:wrap}
+  .chip{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;
+    padding:8px 15px;background:var(--navy-700);font-size:13.5px;color:var(--muted);font-weight:600}
+  .chip b{color:var(--text);font-size:16px;font-variant-numeric:tabular-nums}
+  .chip.count b{color:var(--gold);font-size:20px}
+  .live{display:inline-flex;align-items:center;gap:7px;color:var(--green);font-weight:700}
+  .live .pdot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* control bar */
+  .ctrl{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--navy-800);
+    border:1px solid var(--line);border-radius:14px;padding:13px 15px;margin-bottom:18px}
+  .ctrl .lk{flex:1;min-width:220px;display:flex;gap:8px;align-items:center}
+  .ctrl .lk input{flex:1;min-width:160px;padding:10px 12px;border-radius:9px;font:inherit;font-size:13.5px;
+    background:var(--navy-900);border:1px solid var(--line);color:var(--gold-soft)}
+  .ctrl button{font:inherit;font-weight:700;font-size:13.5px;padding:10px 14px;border-radius:9px;cursor:pointer;
+    border:1px solid var(--line);background:var(--navy-600);color:var(--text);white-space:nowrap}
+  .ctrl button:hover{border-color:var(--blue)}
+  .ctrl button.gold{background:var(--gold);border-color:var(--gold);color:var(--navy-900)}
+  #miniqr{background:#fff;border-radius:9px;padding:6px;line-height:0;display:none}
+  #miniqr.show{display:block}
+
+  .grid{display:grid;grid-template-columns:1.05fr .95fr;gap:18px}
+  @media (max-width:880px){ .grid{grid-template-columns:1fr} .chips{margin-left:0;width:100%} }
+
+  .card{background:linear-gradient(180deg,var(--navy-700),var(--navy-800));border:1px solid var(--line);
+    border-radius:16px;box-shadow:var(--shadow);padding:20px}
+  .card h2{font-size:18px;font-weight:700;margin:0 0 2px}
+  .card .sub{color:var(--muted);font-size:13px;margin:0 0 14px}
+
+  .scope-wrap{position:relative;width:420px;max-width:100%;margin:0 auto}
+  #radar{width:100%;height:auto;display:block}
+  .sweep{position:absolute;inset:0;border-radius:50%;pointer-events:none;mix-blend-mode:screen;
+    background:conic-gradient(from 0deg, rgba(231,181,60,.30) 0deg, rgba(231,181,60,.04) 26deg, rgba(231,181,60,0) 72deg, rgba(231,181,60,0) 360deg);
+    -webkit-mask:radial-gradient(circle at 50% 50%, #000 0 47%, transparent 47%); mask:radial-gradient(circle at 50% 50%, #000 0 47%, transparent 47%);
+    animation:sweep 6s linear infinite}
+  @keyframes sweep{to{transform:rotate(360deg)}}
+  .legend{display:flex;justify-content:center;gap:18px;margin-top:8px;color:var(--muted);font-size:12.5px;flex-wrap:wrap}
+  .legend i{display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:6px;vertical-align:middle}
+  .hilo{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .hilo .pill{flex:1;min-width:150px;background:var(--navy-900);border:1px solid var(--line-soft);border-radius:11px;padding:11px 13px;font-size:13.5px}
+  .hilo .pill .lab{color:var(--muted);font-size:12px}
+  .hilo .pill b{font-size:15px}
+
+  /* resilience side */
+  .bigscore{display:flex;align-items:baseline;gap:10px;margin:2px 0 14px}
+  .bigscore .n{font-size:46px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+  .bigscore .d{color:var(--muted);font-size:16px}
+  .gauge{position:relative;height:16px;border-radius:999px;overflow:hidden;
+    background:linear-gradient(90deg,#5a3a3a 0 50%,#5a523a 50% 75%,#3a5a48 75% 100%);border:1px solid var(--line)}
+  .gauge .needle{position:absolute;top:-4px;width:4px;height:24px;background:#fff;border-radius:2px;
+    box-shadow:0 0 8px rgba(255,255,255,.7);transform:translateX(-50%);transition:left .6s cubic-bezier(.2,.8,.2,1)}
+  .gauge-x{display:flex;justify-content:space-between;color:var(--muted-2);font-size:11.5px;margin-top:6px}
+  .dist{margin-top:20px;display:grid;gap:13px}
+  .drow .dtop{display:flex;justify-content:space-between;align-items:baseline;font-size:14px;margin-bottom:6px}
+  .drow .dtop .who{font-weight:700}
+  .drow .dtop .cnt{font-variant-numeric:tabular-nums;color:var(--muted)}
+  .track{height:14px;border-radius:999px;background:var(--navy-900);border:1px solid var(--line-soft);overflow:hidden}
+  .track .fill{height:100%;border-radius:999px;width:0;transition:width .6s cubic-bezier(.2,.8,.2,1)}
+
+  .empty{text-align:center;color:var(--muted);padding:30px 10px}
+  .empty .big{font-size:17px;font-weight:700;color:var(--text);margin-bottom:6px}
+
+  /* setup notice */
+  .setup{background:linear-gradient(180deg,rgba(231,181,60,.1),rgba(231,181,60,.03));
+    border:1px solid rgba(231,181,60,.32);border-radius:16px;padding:22px;margin-bottom:18px}
+  .setup h2{margin:0 0 8px;font-size:18px;color:var(--gold-soft)}
+  .setup p{margin:0 0 6px;font-size:14px}
+  .setup code{background:var(--navy-900);border:1px solid var(--line);padding:1px 6px;border-radius:5px;color:var(--gold-soft);font-size:13px}
+  .setup button{margin-top:10px;font:inherit;font-weight:700;padding:10px 16px;border-radius:10px;cursor:pointer;
+    background:var(--navy-600);border:1px solid var(--line);color:var(--text)}
+
+  .foot{text-align:center;color:var(--muted-2);font-size:12px;margin-top:24px}
+  @media (prefers-reduced-motion:reduce){ .sweep,.live .pdot{animation:none} }
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="title">
+      <h1>ภาพรวมของห้อง <span class="g">·</span> เรียลไทม์</h1>
+      <p>วงล้อแห่งชีวิต & ความยืดหยุ่น — สวบ.ทอ. · ปฐมนิเทศแพทย์ประจำบ้าน</p>
+    </div>
+    <div class="chips">
+      <span class="chip"><span class="live"><span class="pdot"></span>อัปเดตสด</span></span>
+      <span class="chip">รหัสเซสชัน <b id="sessChip">—</b></span>
+      <span class="chip count">ผู้ตอบ <b id="countChip">0</b></span>
+    </div>
+  </header>
+
+  <div class="setup" id="setupNotice" hidden>
+    <h2>ยังไม่ได้เชื่อมฐานข้อมูล</h2>
+    <p>เปิดไฟล์นี้ในตัวแก้ไข แล้ววางค่า <code>FIREBASE_CONFIG</code> จากโปรเจกต์ Firebase ของคุณ (ค่าเดียวกับที่วางในไฟล์ <code>index.html</code>) เพื่อเปิดการเก็บคะแนนรวมแบบเรียลไทม์</p>
+    <p>ระหว่างนี้กดปุ่มด้านล่างเพื่อดูตัวอย่างหน้าจอด้วยข้อมูลจำลองได้</p>
+    <button id="demoBtn2">ดูตัวอย่างด้วยข้อมูลจำลอง</button>
+  </div>
+
+  <div class="ctrl" id="ctrlBar">
+    <div class="lk">
+      <span style="color:var(--muted);font-size:13px;white-space:nowrap">ลิงก์ผู้เข้าร่วม</span>
+      <input id="joinLink" type="text" readonly value="">
+      <button id="copyBtn">คัดลอก</button>
+    </div>
+    <button id="qrToggle">แสดง QR</button>
+    <div id="miniqr"></div>
+    <button id="newSess">เริ่มเซสชันใหม่</button>
+    <button id="clearSess">ล้างข้อมูล</button>
+    <button id="demoBtn" class="gold">ดูตัวอย่าง</button>
+  </div>
+
+  <div class="grid">
+    <!-- LEFT: average wheel -->
+    <div class="card">
+      <h2>วงล้อแห่งชีวิตเฉลี่ยของห้อง</h2>
+      <p class="sub">เส้นทองคือค่าเฉลี่ย แถบฟ้าคือช่วงคะแนนต่ำสุด–สูงสุดของผู้ตอบ</p>
+      <div class="scope-wrap">
+        <canvas id="radar" width="840" height="840" aria-label="วงล้อเฉลี่ยของห้อง"></canvas>
+        <div class="sweep" aria-hidden="true"></div>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--gold)"></i>ค่าเฉลี่ยของห้อง</span>
+        <span><i style="background:rgba(92,143,214,.5)"></i>ช่วงต่ำสุด–สูงสุด</span>
+      </div>
+      <div class="hilo" id="hilo"></div>
+    </div>
+
+    <!-- RIGHT: resilience -->
+    <div class="card">
+      <h2>ความยืดหยุ่นทางจิตใจของห้อง</h2>
+      <p class="sub">คะแนนเฉลี่ยและการแจกแจงตามระดับ</p>
+      <div class="bigscore"><span class="n" id="avgRes">–</span><span class="d">/ 5 เฉลี่ย</span></div>
+      <div class="gauge"><div class="needle" id="needle" style="left:50%"></div></div>
+      <div class="gauge-x"><span>ควรดูแล</span><span>ปานกลาง</span><span>สูง</span></div>
+
+      <div class="dist">
+        <div class="drow">
+          <div class="dtop"><span class="who" style="color:var(--green)">สูง (≥ 4.0)</span><span class="cnt"><b id="cHi">0</b> คน · <span id="pHi">0%</span></span></div>
+          <div class="track"><div class="fill" id="fHi" style="background:var(--green)"></div></div>
+        </div>
+        <div class="drow">
+          <div class="dtop"><span class="who" style="color:var(--amber)">ปานกลาง (3.0–3.9)</span><span class="cnt"><b id="cMid">0</b> คน · <span id="pMid">0%</span></span></div>
+          <div class="track"><div class="fill" id="fMid" style="background:var(--amber)"></div></div>
+        </div>
+        <div class="drow">
+          <div class="dtop"><span class="who" style="color:var(--red)">ควรดูแลเป็นพิเศษ (&lt; 3.0)</span><span class="cnt"><b id="cLo">0</b> คน · <span id="pLo">0%</span></span></div>
+          <div class="track"><div class="fill" id="fLo" style="background:var(--red)"></div></div>
+        </div>
+      </div>
+
+      <div class="empty" id="emptyState">
+        <div class="big">รอผู้เข้าร่วมส่งคำตอบ…</div>
+        <div>ให้ผู้อบรมสแกน QR หรือเปิดลิงก์เพื่อทำแบบประเมิน ผลจะปรากฏที่นี่ทันที</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="foot">ข้อมูลทั้งหมดไม่ระบุชื่อ · ใช้สำหรับสะท้อนภาพรวมของกลุ่มเพื่อการพูดคุยเชิงพัฒนา</p>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+
+  /* ===== same Firebase config as index.html ===== */
+  var FIREBASE_CONFIG = {
+    apiKey: "AIzaSyDuSuIVIbI0UZClQebhKYTLma5xjcFoVP4",
+    authDomain: "rtaf-wheel.firebaseapp.com",
+    databaseURL: "https://rtaf-wheel-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "rtaf-wheel",
+    storageBucket: "rtaf-wheel.firebasestorage.app",
+    messagingSenderId: "558528892059",
+    appId: "1:558528892059:web:01e036c68e2a5c9c4d4a3e"
+  };
+
+  var WHEEL = [
+    {short:'กาย'},{short:'ใจ'},{short:'งาน'},{short:'เงิน'},
+    {short:'ครอบครัว'},{short:'สัมพันธ์'},{short:'พัก'},{short:'คุณค่า'}
+  ];
+  var WLABEL = ['สุขภาพกาย','สุขภาพใจ/อารมณ์','การงาน/การเรียนรู้','การเงิน','ครอบครัว','มิตรภาพ/ความสัมพันธ์','การพักผ่อน/สันทนาการ','คุณค่า/ความสงบในใจ'];
+
+  function getSession(){
+    var p = new URLSearchParams(location.search).get('s');
+    if(p) return (p.replace(/[^A-Za-z0-9_-]/g,'').slice(0,24)) || 'live';
+    var d = new Date(), z = function(n){ return (n<10?'0':'')+n; };
+    return 'd' + d.getFullYear() + z(d.getMonth()+1) + z(d.getDate());
+  }
+  var SESSION = getSession();
+  var fbReady = false, fbDB = null, curRef = null, demoMode = false;
+  try{
+    if(FIREBASE_CONFIG && FIREBASE_CONFIG.databaseURL && typeof firebase !== 'undefined'){
+      firebase.initializeApp(FIREBASE_CONFIG); fbDB = firebase.database(); fbReady = true;
+    }
+  }catch(e){ fbReady = false; }
+
+  /* ---------- radar (avg + spread band) ---------- */
+  function drawRadar(ctx, cx, cy, R, avg, band){
+    var n = avg.length, maxV = 10;
+    var GOLD='#E7B53C', GRID='#2A427A', GRID2='#35508f';
+    var ang = function(i){ return -Math.PI/2 + i*2*Math.PI/n; };
+    var pt = function(i,rad){ return [cx+Math.cos(ang(i))*rad, cy+Math.sin(ang(i))*rad]; };
+
+    var g = ctx.createRadialGradient(cx,cy,R*0.05,cx,cy,R);
+    g.addColorStop(0,'rgba(31,60,120,.55)'); g.addColorStop(1,'rgba(11,23,48,.15)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(cx,cy,R,0,2*Math.PI); ctx.fill();
+
+    ctx.lineWidth=1;
+    for(var lvl=2;lvl<=maxV;lvl+=2){
+      var rr=R*lvl/maxV; ctx.beginPath();
+      for(var i=0;i<n;i++){ var p=pt(i,rr); i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]); }
+      ctx.closePath(); ctx.strokeStyle=(lvl===maxV)?GRID2:GRID; ctx.stroke();
+      ctx.fillStyle='rgba(157,177,214,.55)'; ctx.font=Math.max(9,R*0.045)+'px Sarabun, sans-serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(String(lvl),cx,cy-rr);
+    }
+    ctx.strokeStyle=GRID;
+    for(var s=0;s<n;s++){ var e=pt(s,R); ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(e[0],e[1]); ctx.stroke(); }
+
+    // spread band (min..max) via even-odd between two rings
+    if(band){
+      ctx.beginPath();
+      for(var bi=0;bi<n;bi++){ var pM=pt(bi,R*band.max[bi]/maxV); bi?ctx.lineTo(pM[0],pM[1]):ctx.moveTo(pM[0],pM[1]); }
+      ctx.closePath();
+      for(var bj=0;bj<n;bj++){ var pm=pt(bj,R*band.min[bj]/maxV); bj?ctx.lineTo(pm[0],pm[1]):ctx.moveTo(pm[0],pm[1]); }
+      ctx.closePath();
+      ctx.fillStyle='rgba(92,143,214,.18)'; ctx.fill('evenodd');
+    }
+
+    // average polygon
+    ctx.beginPath();
+    for(var d=0;d<n;d++){ var pr=pt(d,R*avg[d]/maxV); d?ctx.lineTo(pr[0],pr[1]):ctx.moveTo(pr[0],pr[1]); }
+    ctx.closePath(); ctx.fillStyle='rgba(231,181,60,.20)'; ctx.fill();
+    ctx.lineWidth=3; ctx.strokeStyle=GOLD; ctx.stroke();
+    for(var v=0;v<n;v++){ var pv=pt(v,R*avg[v]/maxV); ctx.beginPath(); ctx.arc(pv[0],pv[1],R*0.022,0,2*Math.PI); ctx.fillStyle='#F4D27A'; ctx.fill(); ctx.lineWidth=1.5; ctx.strokeStyle='#0B1730'; ctx.stroke(); }
+
+    ctx.font='600 '+Math.max(12,R*0.066)+'px Sarabun, sans-serif';
+    for(var L=0;L<n;L++){
+      var lp=pt(L,R+R*0.17), a=ang(L), cosA=Math.cos(a), sinA=Math.sin(a);
+      ctx.textAlign=cosA>0.25?'left':(cosA<-0.25?'right':'center');
+      ctx.textBaseline=sinA>0.25?'top':(sinA<-0.25?'bottom':'middle');
+      ctx.fillStyle='#C7D5F0'; ctx.fillText(WHEEL[L].short,lp[0],lp[1]);
+    }
+  }
+
+  function hidpi(canvas, css){
+    var dpr=Math.min(window.devicePixelRatio||1,2.5);
+    canvas.width=css*dpr; canvas.height=css*dpr;
+    var ctx=canvas.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0); return ctx;
+  }
+
+  /* ---------- aggregate + render ---------- */
+  function aggregate(arr){
+    var n=arr.length, sumW=[0,0,0,0,0,0,0,0], minW=[10,10,10,10,10,10,10,10], maxW=[0,0,0,0,0,0,0,0], sumR=0;
+    var dist={'สูง':0,'ปานกลาง':0,'ควรดูแลเป็นพิเศษ':0};
+    arr.forEach(function(rec){
+      var w=rec.w||[]; for(var i=0;i<8;i++){ var v=+w[i]||0; sumW[i]+=v; if(v<minW[i])minW[i]=v; if(v>maxW[i])maxW[i]=v; }
+      sumR += +rec.r||0;
+      var b=rec.b||''; if(dist[b]!==undefined) dist[b]++;
+    });
+    var avgW=sumW.map(function(s){ return n? s/n : 0; });
+    return { n:n, avgW:avgW, minW:(n?minW:[0,0,0,0,0,0,0,0]), maxW:maxW, avgR:(n?sumR/n:0), dist:dist };
+  }
+
+  function resBandName(s){ if(s>=4)return 'สูง'; if(s>=3)return 'ปานกลาง'; return 'ควรดูแล'; }
+
+  function render(arr){
+    var a = aggregate(arr);
+    $('countChip').textContent = a.n;
+
+    var empty = $('emptyState');
+    if(a.n === 0){
+      empty.style.display='block';
+      var ctx0=hidpi($('radar'),420); ctx0.clearRect(0,0,420,420);
+      drawRadar(ctx0,210,206,420*0.33,[0,0,0,0,0,0,0,0],null);
+      $('avgRes').textContent='–'; $('avgRes').style.color='var(--text)'; $('needle').style.left='50%';
+      ['Hi','Mid','Lo'].forEach(function(k){ $('c'+k).textContent='0'; $('p'+k).textContent='0%'; $('f'+k).style.width='0'; });
+      $('hilo').innerHTML='';
+      return;
+    }
+    empty.style.display='none';
+
+    // radar
+    var SIZE=420, ctx=hidpi($('radar'),SIZE);
+    var draw=function(){ ctx.clearRect(0,0,SIZE,SIZE); drawRadar(ctx,SIZE/2,SIZE/2-4,SIZE*0.33,a.avgW,{min:a.minW,max:a.maxW}); };
+    if(document.fonts && document.fonts.ready){ document.fonts.ready.then(draw); }
+    draw();
+
+    // hi/lo domains
+    var maxI=0,minI=0; a.avgW.forEach(function(v,i){ if(v>a.avgW[maxI])maxI=i; if(v<a.avgW[minI])minI=i; });
+    $('hilo').innerHTML =
+      '<div class="pill"><div class="lab">ด้านที่แข็งแรงที่สุดของห้อง</div><b style="color:var(--gold-soft)">'+WLABEL[maxI]+'</b> <span style="color:var(--muted)">'+a.avgW[maxI].toFixed(1)+'/10</span></div>'+
+      '<div class="pill"><div class="lab">ด้านที่ทั้งห้องควรเติมพลัง</div><b style="color:var(--red)">'+WLABEL[minI]+'</b> <span style="color:var(--muted)">'+a.avgW[minI].toFixed(1)+'/10</span></div>';
+
+    // resilience avg + gauge
+    var bn=resBandName(a.avgR), col = bn==='สูง'?'#5CC08A':(bn==='ปานกลาง'?'#E7B53C':'#E2756A');
+    $('avgRes').textContent=a.avgR.toFixed(1); $('avgRes').style.color=col;
+    $('needle').style.left = Math.max(2,Math.min(98,((a.avgR-1)/4)*100))+'%';
+
+    // distribution
+    var hi=a.dist['สูง'], mid=a.dist['ปานกลาง'], lo=a.dist['ควรดูแลเป็นพิเศษ'];
+    var setRow=function(k,c){ $('c'+k).textContent=c; var pct=a.n?Math.round(c/a.n*100):0; $('p'+k).textContent=pct+'%'; $('f'+k).style.width=pct+'%'; };
+    setRow('Hi',hi); setRow('Mid',mid); setRow('Lo',lo);
+  }
+
+  /* ---------- session link + QR ---------- */
+  function joinURL(){ return new URL('index.html?s='+SESSION, location.href).href; }
+  function refreshLink(){
+    $('sessChip').textContent = SESSION;
+    $('joinLink').value = joinURL();
+    var box=$('miniqr'); box.innerHTML='';
+    if(typeof QRCode!=='undefined'){ new QRCode(box,{text:joinURL(),width:120,height:120,colorDark:'#0B1730',colorLight:'#ffffff',correctLevel:QRCode.CorrectLevel.M}); }
+  }
+
+  /* ---------- live subscription ---------- */
+  function subscribe(){
+    if(!fbReady) return;
+    if(curRef){ curRef.off(); }
+    curRef = fbDB.ref('sessions/'+SESSION+'/responses');
+    curRef.on('value', function(snap){
+      if(demoMode) return;
+      var val = snap.val() || {};
+      render(Object.keys(val).map(function(k){ return val[k]; }));
+    });
+  }
+
+  /* ---------- controls ---------- */
+  $('copyBtn').addEventListener('click', function(){
+    var el=$('joinLink'); el.select();
+    if(navigator.clipboard){ navigator.clipboard.writeText(el.value); }
+    else { document.execCommand('copy'); }
+    this.textContent='คัดลอกแล้ว'; var b=this; setTimeout(function(){ b.textContent='คัดลอก'; },1500);
+  });
+  $('qrToggle').addEventListener('click', function(){
+    var box=$('miniqr'); box.classList.toggle('show');
+    this.textContent = box.classList.contains('show') ? 'ซ่อน QR' : 'แสดง QR';
+  });
+  $('newSess').addEventListener('click', function(){
+    var code=''; for(var i=0;i<4;i++){ code += 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[Math.floor(Math.random()*32)]; }
+    SESSION = code; demoMode = false;
+    history.replaceState(null,'', location.pathname+'?s='+SESSION);
+    refreshLink(); subscribe(); render([]);
+  });
+  $('clearSess').addEventListener('click', function(){
+    if(!fbReady){ alert('ยังไม่ได้เชื่อมฐานข้อมูล'); return; }
+    if(!confirm('ล้างคำตอบทั้งหมดของเซสชัน '+SESSION+' ? การลบนี้ย้อนกลับไม่ได้')) return;
+    fbDB.ref('sessions/'+SESSION).remove();
+  });
+
+  /* ---------- demo ---------- */
+  function demoData(){
+    function rnd(lo,hi){ return Math.round(lo+Math.random()*(hi-lo)); }
+    var arr=[];
+    for(var i=0;i<14;i++){
+      var w=[rnd(5,9),rnd(3,8),rnd(4,9),rnd(3,8),rnd(5,10),rnd(4,9),rnd(2,7),rnd(5,9)];
+      var r=+(2.4+Math.random()*2.4).toFixed(2);
+      arr.push({w:w,r:r,b:(r>=4?'สูง':(r>=3?'ปานกลาง':'ควรดูแลเป็นพิเศษ'))});
+    }
+    return arr;
+  }
+  function runDemo(){ demoMode=true; render(demoData()); }
+  $('demoBtn').addEventListener('click', runDemo);
+  var d2=$('demoBtn2'); if(d2) d2.addEventListener('click', runDemo);
+
+  /* ---------- init ---------- */
+  refreshLink();
+  if(fbReady){ subscribe(); render([]); }
+  else { $('setupNotice').hidden=false; render([]); }
+
+})();
+</script>
